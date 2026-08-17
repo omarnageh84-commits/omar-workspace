@@ -1,11 +1,10 @@
-// app.js - Hybrid Firebase + Google Sheet
+// app.js - النسخة الكاملة - Firebase ياخد كل حاجة
 import { saveData } from "./firebase.js";
 const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbzh_9Ob76032uBa-0WqRopMVvZ5nEfwiJ7cE9wSQ8JItDnmGezp40OC23L0oDwlHJetjg/exec";
 
 function sendToSheet(tabName, rowArray){
   try{
     fetch(SHEET_API_URL, {method:"POST", mode:"no-cors", body:JSON.stringify({tab:tabName, values:rowArray})});
-    console.log("Sheet sent", tabName, rowArray);
   }catch(e){}
 }
 export function saveDailyToFirebase(tx){
