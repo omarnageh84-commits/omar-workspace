@@ -227,5 +227,67 @@ function saveTx(){
 }
 (function init(){ document.getElementById('today').textContent=new Date().toLocaleDateString('ar-EG'); ensureMaster(); if(transactions.length===0){ transactions=[{id:'1',type:'expense',item:'الإيجار',person:'الإيجار',amount:1000,date:'2026-08-15',wallet:'كاش'}]; persist(); } switchTab('expense'); })();
 </script>
+
+<script type="module">
+import { saveData, deleteData, listenData } from "./firebase.js";
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbwZK86VlWCxTAm0id556i3akziyE1oT8Qk75Zs2WRzR3zaZn-WqKOfGPi8_zXcPcwEImA/exec";
+function sendToSheet(tab, row){
+  try{ fetch(SHEET_URL, {method:"POST", mode:"no-cors", body: JSON.stringify({tab: tab, values: row})}); }catch(e){}
+}
+// Hook original saveTx
+const originalSaveTx = window.saveTx;
+window.saveTx = function(){
+  let type=cardTab; let item,person,wallet,amount,date,note,direction,status;
+  if(type==='expense'||type==='income'){ item=document.getElementById('a-item').value; wallet=document.getElementById('a-wallet').value; amount=document.getElementById('a-amount').value; date=document.getElementById('a-date').value; note=document.getElementById('a-note').value; }
+  else if(type==='debt'){ item=document.getElementById('a-person-debt').value; person=item; wallet=document.getElementById('a-wallet-debt').value; amount=document.getElementById('a-amount-debt').value; date=document.getElementById('a-date').value; note=document.getElementById('a-note-debt').value; direction=document.getElementById('a-direction').value; status=document.getElementById('a-status').value; }
+  else if(type==='amanat'){ item=document.getElementById('a-person-ama').value; person=item; wallet='الأمانات'; amount=document.getElementById('a-amount-ama').value; date=document.getElementById('a-date-ama').value; note=document.getElementById('a-note-ama').value; direction='عليا'; status=''; }
+  if(!amount||Number(amount)===0){ return originalSaveTx(); }
+  // call original to keep localStorage logic
+  const result = originalSaveTx();
+  // after original, get last saved tx
+  try{
+    const last = transactions[transactions.length-1];
+    if(last){
+      saveData("daily", last.id, last);
+      const row = [last.date||"", last.type||"", last.item||last.person||"", last.amount||"", last.wallet||"", last.note||"", last.direction||"", last.status||"", Date.now()];
+      sendToSheet("اليومية - Daily", row);
+    }
+  }catch(e){ console.log(e); }
+  return result;
+};
+// Hook delete
+const origDelete = window.deleteTx;
+if(origDelete){
+  window.deleteTx = function(){
+    try{ if(window.editingId) deleteData("daily", window.editingId); }catch(e){}
+    return origDelete();
+  };
+}
+// Hook confirmDeleteDaily
+const origConfirmDelete = window.confirmDeleteDaily;
+if(origConfirmDelete){
+  window.confirmDeleteDaily = function(id){
+    try{ deleteData("daily", id); }catch(e){}
+    return origConfirmDelete(id);
+  };
+}
+// Listen from Firebase to sync
+try{
+  listenData("daily", (arr)=>{
+    if(arr && arr.length>0){
+      // merge without duplicates, keep latest
+      const map = new Map(transactions.map(t=>[t.id, t]));
+      arr.forEach(d=> map.set(d.id, {...map.get(d.id), ...d}));
+      transactions = Array.from(map.values());
+      localStorage.setItem('omar_tx_v3', JSON.stringify(transactions));
+      if(window.curTab==='debt' && window.renderDebt) window.renderDebt();
+      else if(window.curTab==='total' && window.renderTotal) window.renderTotal();
+      else if(window.renderSimple) window.renderSimple(window.curTab);
+      if(window.renderTotal) window.renderTotal();
+    }
+  });
+}catch(e){}
+</script>
+
 </body>
 </html>
